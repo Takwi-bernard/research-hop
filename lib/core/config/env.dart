@@ -7,7 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class Env {
   const Env._();
 
-  static const String _file = 'assets/env/app.env';
+  static const String _file = '.env';
 
   static Future<void> load() async {
     try {
