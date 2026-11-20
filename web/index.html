@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Research Hop: live classes and courses, made simple.">
+  <meta name="theme-color" content="#016E3A">
+  <title>Research Hop</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <style>
+    html, body { margin: 0; height: 100%; background: #F5EFE3; }
+    @media (prefers-color-scheme: dark) { html, body { background: #101512; } }
+    #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+    #splash .name { margin-top: 16px; font: 700 24px Georgia, 'Times New Roman', serif; color: #0F2742; }
+    #splash .tag { font: 400 14px system-ui, sans-serif; color: #58667A; }
+    @media (prefers-color-scheme: dark) { #splash .name { color: #EFEADF; } #splash .tag { color: #A3AEA6; } }
+    #splash img { width: 96px; height: 96px; border-radius: 20px; animation: hop 1.4s ease-in-out infinite; }
+    @keyframes hop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  </style>
+</head>
+<body>
+  <div id="splash"><img src="icons/Icon-192.png" alt="Research Hop"><div class="name">Research Hop</div><div class="tag">Learn, one hop at a time.</div></div>
+  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash');
+      if (s) s.remove();
+    });
+  </script>
+</body>
+</html>
