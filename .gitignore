@@ -11,7 +11,7 @@ build/
 .vscode/
 
 # Secrets: only the example file is committed
-assets/env/app.env
+
 .env
 *.env.local
 
