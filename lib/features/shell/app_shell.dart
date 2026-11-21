@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_palette.dart';
 import '../../core/utils/responsive.dart';
 import '../../shared/widgets/brand.dart';
 import '../auth/domain/models.dart';
+import '../notifications/data/notifications_data.dart';
 import 'account_sheet.dart';
 import 'nav_destinations.dart';
 
 /// Navigation frame shared by all three roles.
 /// Phone: bottom bar. Tablet: side rail. Desktop: full sidebar.
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   const AppShell({
     super.key,
     required this.navigationShell,
@@ -28,9 +30,22 @@ class AppShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.palette;
     final items = navFor(role);
+    // Only students and teachers have an Alerts tab.
+    final unread =
+        role == AppRole.admin ? 0 : ref.watch(unreadCountProvider);
+
+    Widget iconFor(NavItem item, bool selected) {
+      final icon = Icon(
+        selected ? item.selectedIcon : item.icon,
+        color: selected ? p.softInk : null,
+      );
+      if (item.label != 'Alerts' || unread == 0) return icon;
+      return Badge(label: Text(unread > 9 ? '9+' : '$unread'), child: icon);
+    }
+
     final index = navigationShell.currentIndex;
     final size = context.screenSize;
     final body = navigationShell;
@@ -60,8 +75,8 @@ class AppShell extends StatelessWidget {
           destinations: [
             for (final item in items)
               NavigationDestination(
-                icon: Icon(item.icon),
-                selectedIcon: Icon(item.selectedIcon, color: p.softInk),
+                icon: iconFor(item, false),
+                selectedIcon: iconFor(item, true),
                 label: item.label,
               ),
           ],
@@ -96,8 +111,8 @@ class AppShell extends StatelessWidget {
               destinations: [
                 for (final item in items)
                   NavigationRailDestination(
-                    icon: Icon(item.icon),
-                    selectedIcon: Icon(item.selectedIcon, color: p.softInk),
+                    icon: iconFor(item, false),
+                    selectedIcon: iconFor(item, true),
                     label: Text(item.label),
                   ),
               ],
@@ -118,6 +133,7 @@ class AppShell extends StatelessWidget {
             selected: index,
             onSelect: _select,
             role: role,
+            unread: unread,
           ),
           VerticalDivider(width: 1, color: p.line),
           Expanded(child: body),
@@ -133,8 +149,10 @@ class _Sidebar extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     required this.role,
+    required this.unread,
   });
 
+  final int unread;
   final List<NavItem> items;
   final int selected;
   final ValueChanged<int> onSelect;
@@ -167,6 +185,7 @@ class _Sidebar extends StatelessWidget {
             _SidebarTile(
               item: items[i],
               selected: i == selected,
+              badge: items[i].label == 'Alerts' ? unread : 0,
               onTap: () => onSelect(i),
             ),
           const Spacer(),
@@ -190,8 +209,10 @@ class _SidebarTile extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.onTap,
+    this.badge = 0,
   });
 
+  final int badge;
   final NavItem item;
   final bool selected;
   final VoidCallback onTap;
@@ -225,6 +246,25 @@ class _SidebarTile extends StatelessWidget {
                     color: selected ? p.softInk : p.ink,
                   ),
                 ),
+                if (badge > 0) ...[
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: p.accent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      badge > 9 ? '9+' : '$badge',
+                      style: TextStyle(
+                        color: p.accentInk,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

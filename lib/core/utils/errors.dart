@@ -1,14 +1,18 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/env.dart';
+import 'app_exception.dart';
 import 'upload_exception.dart';
 
 /// Turns any error into a short sentence a student can understand.
 String friendlyError(Object error) {
   if (error is UploadException) return error.message;
+  if (error is AppException) return error.message;
   final text = error.toString();
 
   if (_looksLikeNetworkProblem(text)) {
-    return 'No internet connection. Check your data and try again.';
+    return 'Could not reach ${Env.host}. Check your data and try again. '
+        '(If your data is fine, the project address in app.env is wrong.)';
   }
 
   if (error is AuthException) {

@@ -18,9 +18,20 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/auth/presentation/sign_up_screen.dart';
 import '../../features/auth/presentation/teacher_apply_screen.dart';
+import '../../features/classroom/presentation/classroom_page.dart';
 import '../../features/home/home_page.dart';
+import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
+import '../../features/student/presentation/payment_page.dart';
+import '../../features/student/presentation/register_page.dart';
+import '../../features/student/presentation/student_course_page.dart';
+import '../../features/student/presentation/student_courses_page.dart';
+import '../../features/student/presentation/student_home_page.dart';
 import '../../features/shell/app_shell.dart';
+import '../../features/teacher/presentation/teacher_classes_page.dart';
+import '../../features/teacher/presentation/teacher_course_page.dart';
+import '../../features/teacher/presentation/teacher_courses_page.dart';
+import '../../features/teacher/presentation/teacher_home_page.dart';
 import '../../features/shell/module_placeholder.dart';
 import '../../features/shell/nav_destinations.dart';
 import '../../features/shell/role_home_page.dart';
@@ -63,8 +74,29 @@ Widget _pageFor(AppRole role, int index) {
         return const AdminPaymentsPage();
     }
   }
-  if (role == AppRole.student && item.path == '/student/profile') {
-    return const ProfilePage();
+  if (role == AppRole.student) {
+    switch (index) {
+      case 0:
+        return const StudentHomePage();
+      case 1:
+        return const StudentCoursesPage();
+      case 2:
+        return const NotificationsPage();
+      case 3:
+        return const ProfilePage();
+    }
+  }
+  if (role == AppRole.teacher) {
+    switch (index) {
+      case 0:
+        return const TeacherHomePage();
+      case 1:
+        return const TeacherCoursesPage();
+      case 2:
+        return const TeacherClassesPage();
+      case 3:
+        return const NotificationsPage();
+    }
   }
   return index == 0 ? RoleHomePage(role: role) : ModulePlaceholder(item: item);
 }
@@ -94,6 +126,54 @@ StatefulShellRoute _shell(AppRole role) {
               _branchRoute('/${role.name}/profile', (_) => const ProfilePage()),
             // The course editor lives in the Courses branch. "new" must come
             // before ":id".
+            if (role == AppRole.student && items[i].path == '/student/courses') ...[
+              _branchRoute(
+                '/student/courses/:id/register',
+                (state) => RegisterPage(
+                  key: ValueKey('reg-${state.pathParameters['id']}'),
+                  courseId: state.pathParameters['id']!,
+                ),
+              ),
+              _branchRoute(
+                '/student/courses/:id',
+                (state) => StudentCoursePage(
+                  key: ValueKey(state.pathParameters['id']),
+                  courseId: state.pathParameters['id']!,
+                ),
+              ),
+              _branchRoute(
+                '/student/classes/:id',
+                (state) => ClassRoomPage(
+                  key: ValueKey('room-${state.pathParameters['id']}'),
+                  sessionId: state.pathParameters['id']!,
+                  isTeacher: false,
+                ),
+              ),
+              _branchRoute(
+                '/student/pay/:registrationId',
+                (state) => PaymentPage(
+                  key: ValueKey(state.pathParameters['registrationId']),
+                  registrationId: state.pathParameters['registrationId']!,
+                ),
+              ),
+            ],
+            if (role == AppRole.teacher && items[i].path == '/teacher/courses')
+              _branchRoute(
+                '/teacher/courses/:id',
+                (state) => TeacherCoursePage(
+                  key: ValueKey('tc-${state.pathParameters['id']}'),
+                  courseId: state.pathParameters['id']!,
+                ),
+              ),
+            if (role == AppRole.teacher && items[i].path == '/teacher/classes')
+              _branchRoute(
+                '/teacher/classes/:id',
+                (state) => ClassRoomPage(
+                  key: ValueKey('room-${state.pathParameters['id']}'),
+                  sessionId: state.pathParameters['id']!,
+                  isTeacher: true,
+                ),
+              ),
             if (role == AppRole.admin && items[i].path == '/admin/courses') ...[
               _branchRoute(
                 '/admin/courses/new',
