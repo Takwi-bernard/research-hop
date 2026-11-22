@@ -66,6 +66,10 @@ class _ClassRoomPageState extends ConsumerState<ClassRoomPage> {
   void _back() =>
       context.go(widget.isTeacher ? '/teacher/classes' : '/student');
 
+  void _toast(String message) {
+    if (mounted) showAppSnack(context, message, error: true);
+  }
+
   Future<void> _run(Future<String?> Function() action) async {
     final error = await action();
     if (error != null && mounted) showAppSnack(context, error, error: true);
@@ -153,6 +157,8 @@ class _ClassRoomPageState extends ConsumerState<ClassRoomPage> {
                     onHands: _showHands,
                     onMode: (mode, media) => _run(() => _room.setMode(mode, media)),
                   ),
+                if (widget.isTeacher && session.live)
+                  _HandQueue(room: _room, onMore: _showHands, onError: _toast),
                 Expanded(
                   child: items.isEmpty
                       ? EmptyState(
@@ -173,6 +179,9 @@ class _ClassRoomPageState extends ConsumerState<ClassRoomPage> {
                           ),
                         ),
                 ),
+                TypingIndicator(names: _room.typingNames),
+                if (!widget.isTeacher && session.live)
+                  _StudentHandNote(room: _room, onError: _toast),
                 ChatComposer(room: _room),
               ],
             ),
@@ -347,8 +356,8 @@ class _TeacherBar extends StatelessWidget {
                 ],
               ),
               Badge(
-                isLabelVisible: room.hands.isNotEmpty,
-                label: Text('${room.hands.length}'),
+                isLabelVisible: room.waitingHands.isNotEmpty,
+                label: Text('${room.waitingHands.length}'),
                 child: OutlinedButton.icon(
                   onPressed: onHands,
                   icon: const Icon(Icons.back_hand_outlined, size: 18),
@@ -415,18 +424,42 @@ class _HandsSheet extends StatelessWidget {
                   for (final hand in room.hands)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.back_hand_rounded, color: p.gold),
+                      leading: Icon(
+                        hand.hasFloor
+                            ? Icons.record_voice_over_rounded
+                            : Icons.back_hand_rounded,
+                        color: hand.hasFloor ? p.accent : p.gold,
+                      ),
                       title: Text(hand.label),
-                      subtitle: Text(timeAgo(hand.createdAt)),
+                      subtitle: Text(
+                        hand.hasFloor
+                            ? 'Has the floor'
+                            : timeAgo(hand.createdAt),
+                      ),
                       trailing: Wrap(
                         spacing: 4,
                         children: [
-                          TextButton(
-                            onPressed: room.busy
-                                ? null
-                                : () => act(() => room.resolveHand(hand)),
-                            child: const Text('Done'),
-                          ),
+                          if (hand.hasFloor)
+                            TextButton(
+                              onPressed: room.busy
+                                  ? null
+                                  : () => act(() => room.endFloor(hand)),
+                              child: const Text('Take back'),
+                            )
+                          else ...[
+                            FilledButton.tonal(
+                              onPressed: room.busy
+                                  ? null
+                                  : () => act(() => room.giveFloor(hand)),
+                              child: const Text('Give floor'),
+                            ),
+                            TextButton(
+                              onPressed: room.busy
+                                  ? null
+                                  : () => act(() => room.deferHand(hand)),
+                              child: const Text('Later'),
+                            ),
+                          ],
                           TextButton(
                             onPressed: room.busy
                                 ? null
@@ -462,6 +495,227 @@ class _HandsSheet extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+
+/// Instructor view: the student who has the floor, and the next raised hand
+/// with the two answers the instructor can give.
+class _HandQueue extends StatelessWidget {
+  const _HandQueue({
+    required this.room,
+    required this.onMore,
+    required this.onError,
+  });
+
+  final ClassRoomController room;
+  final VoidCallback onMore;
+  final void Function(String message) onError;
+
+  Future<void> _act(Future<String?> Function() action) async {
+    final error = await action();
+    if (error != null) onError(error);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final holder = room.floorHolder;
+    final waiting = room.waitingHands;
+    final next = waiting.isEmpty ? null : waiting.first;
+
+    final cards = <Widget>[
+      if (holder != null)
+        Container(
+          key: ValueKey('floor-${holder.id}'),
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+          padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+          decoration: BoxDecoration(
+            color: p.softBg,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.record_voice_over_rounded, color: p.softInk),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${holder.label} has the floor',
+                  style: TextStyle(
+                    color: p.softInk,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed:
+                    room.busy ? null : () => _act(() => room.endFloor(holder)),
+                child: const Text('Take back'),
+              ),
+            ],
+          ),
+        ),
+      if (next != null)
+        Container(
+          key: ValueKey('hand-${next.id}'),
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+          decoration: BoxDecoration(
+            color: p.surface,
+            border: Border.all(color: p.gold, width: 1.5),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Icon(Icons.back_hand_rounded, color: p.gold),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 120, maxWidth: 360),
+                child: Text(
+                  '${next.label} raised a hand'
+                  '${waiting.length > 1 ? '  ·  +${waiting.length - 1} more' : ''}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              FilledButton(
+                onPressed:
+                    room.busy ? null : () => _act(() => room.giveFloor(next)),
+                child: const Text('Give the floor'),
+              ),
+              OutlinedButton(
+                onPressed:
+                    room.busy ? null : () => _act(() => room.deferHand(next)),
+                child: const Text('Later'),
+              ),
+              if (waiting.length > 1)
+                TextButton(onPressed: onMore, child: const Text('See all')),
+            ],
+          ),
+        ),
+    ];
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -0.15),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        ),
+        child: cards.isEmpty
+            ? const SizedBox(key: ValueKey('none'), width: double.infinity)
+            : Column(
+                key: ValueKey(
+                  '${holder?.id}-${next?.id}-${waiting.length}',
+                ),
+                children: cards,
+              ),
+      ),
+    );
+  }
+}
+
+/// Student view: a clear message once the instructor answers a raised hand.
+class _StudentHandNote extends StatelessWidget {
+  const _StudentHandNote({required this.room, required this.onError});
+
+  final ClassRoomController room;
+  final void Function(String message) onError;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final hand = room.myHand;
+    Widget? card;
+    String key = 'none';
+
+    if (room.hasFloor && hand != null) {
+      key = 'floor-${hand.id}';
+      card = Container(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: p.softBg,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.record_voice_over_rounded, color: p.softInk),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'The floor is yours. Type your question for the class.',
+                style: TextStyle(
+                  color: p.softInk,
+                  fontWeight: FontWeight.w700,
+                  height: 1.3,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: room.busy
+                  ? null
+                  : () async {
+                      final error = await room.endFloor(hand);
+                      if (error != null) onError(error);
+                    },
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } else if (room.showLaterNote && hand != null) {
+      key = 'later-${hand.id}';
+      card = Container(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+        padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+        decoration: BoxDecoration(
+          color: p.surface2,
+          border: Border.all(color: p.line),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.schedule_rounded, color: p.gold),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Your instructor saw your hand and will get to you later. '
+                'Please keep listening.',
+                style: TextStyle(color: p.ink, height: 1.3),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Close',
+              onPressed: room.dismissLaterNote,
+              icon: Icon(Icons.close_rounded, color: p.ink2, size: 20),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      alignment: Alignment.bottomCenter,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        child: card == null
+            ? const SizedBox(key: ValueKey('none'), width: double.infinity)
+            : KeyedSubtree(key: ValueKey(key), child: card),
+      ),
     );
   }
 }

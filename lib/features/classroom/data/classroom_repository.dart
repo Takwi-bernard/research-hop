@@ -56,12 +56,64 @@ class ClassroomRepository {
   Future<List<HandRaise>> hands(String sessionId) async {
     final rows = await _client
         .from('session_hand_raises')
-        .select('id, student_id, student_label, created_at')
+        .select(
+          'id, student_id, student_label, created_at, response, '
+          'responded_at, resolved_at',
+        )
         .eq('session_id', sessionId)
         .filter('resolved_at', 'is', null)
         .order('created_at');
     return [for (final r in _list(rows)) HandRaise.fromRow(r)];
   }
+
+  /// The student's most recent hand in this class, answered or not.
+  Future<HandRaise?> myLatestHand(String sessionId) async {
+    final rows = await _client
+        .from('session_hand_raises')
+        .select(
+          'id, student_id, student_label, created_at, response, '
+          'responded_at, resolved_at',
+        )
+        .eq('session_id', sessionId)
+        .eq('student_id', myId)
+        .order('created_at', ascending: false)
+        .limit(1);
+    final list = _list(rows);
+    return list.isEmpty ? null : HandRaise.fromRow(list.first);
+  }
+
+  Future<List<Receipt>> receipts(String sessionId) async {
+    final rows = await _client
+        .from('message_reads')
+        .select('message_id, reader_id, reader_label, read_at')
+        .eq('session_id', sessionId)
+        .order('read_at')
+        .limit(3000);
+    return [for (final r in _list(rows)) Receipt.fromRow(r)];
+  }
+
+  Future<void> markRead(String sessionId) =>
+      _client.rpc('mark_session_read', params: {'p_session': sessionId});
+
+  /// The name shown next to this person's typing indicator.
+  Future<String> myLabel() async {
+    final row = await _client
+        .from('profiles')
+        .select('full_name')
+        .eq('id', myId)
+        .maybeSingle();
+    final name = ((row?['full_name']) as String?)?.trim() ?? '';
+    return name.isEmpty ? 'A student' : name;
+  }
+
+  Future<void> giveFloor(String handId) =>
+      _client.rpc('give_floor', params: {'p_hand': handId});
+
+  Future<void> deferHand(String handId) =>
+      _client.rpc('defer_hand', params: {'p_hand': handId});
+
+  Future<void> endFloor(String handId) =>
+      _client.rpc('end_floor', params: {'p_hand': handId});
 
   Future<Set<String>> mutedIds(String sessionId) async {
     final rows = await _client

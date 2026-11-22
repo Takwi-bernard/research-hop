@@ -73,6 +73,11 @@ class MessageTile extends StatelessWidget {
     final maxWidth = math.min(MediaQuery.sizeOf(context).width * 0.8, 520.0);
     final studentSender = !mine && !message.fromInstructor;
     final muted = room.mutedIds.contains(message.senderId);
+    // Swipe left (or tap the ticks) to see who has read it. Senders see
+    // their own messages; the instructor sees every message.
+    final canInfo = message.state == SendState.sent &&
+        message.kind != MessageKind.system &&
+        (mine || room.isTeacher);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -151,7 +156,10 @@ class MessageTile extends StatelessWidget {
                     ],
                   ),
                 ),
-              Container(
+              _SwipeToInfo(
+                enabled: canInfo,
+                onInfo: () => showMessageInfo(context, room, message),
+                child: Container(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                 decoration: BoxDecoration(
                   color: bubble,
@@ -171,16 +179,36 @@ class MessageTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: Text(
-                        _clock(message.createdAt),
-                        style: TextStyle(
-                          color: ink.withValues(alpha: 0.7),
-                          fontSize: 11.5,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _clock(message.createdAt),
+                            style: TextStyle(
+                              color: ink.withValues(alpha: 0.7),
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          if (mine) ...[
+                            const SizedBox(width: 4),
+                            InkResponse(
+                              onTap: canInfo
+                                  ? () => showMessageInfo(context, room, message)
+                                  : null,
+                              radius: 16,
+                              child: ReadTicks(
+                                state: message.state,
+                                readCount: room.readersOf(message).length,
+                                ink: ink,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
                 ),
+              ),
               ),
               if (mine && message.privateToInstructor)
                 Padding(
@@ -536,6 +564,326 @@ class _FileContentState extends State<_FileContent> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// Sending clock, one grey tick (delivered to the class), two coloured
+/// ticks (someone has read it).
+class ReadTicks extends StatelessWidget {
+  const ReadTicks({
+    super.key,
+    required this.state,
+    required this.readCount,
+    required this.ink,
+  });
+
+  final SendState state;
+  final int readCount;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final readColor = dark ? const Color(0xFF0B63B5) : const Color(0xFF8FD6FF);
+    final (icon, color) = switch (state) {
+      SendState.sending => (Icons.schedule_rounded, ink.withValues(alpha: 0.65)),
+      SendState.failed => (Icons.error_outline_rounded, const Color(0xFFFF8A80)),
+      SendState.sent => readCount > 0
+          ? (Icons.done_all_rounded, readColor)
+          : (Icons.done_rounded, ink.withValues(alpha: 0.65)),
+    };
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      transitionBuilder: (child, animation) => ScaleTransition(
+        scale: animation,
+        child: FadeTransition(opacity: animation, child: child),
+      ),
+      child: Icon(icon, key: ValueKey('$state-${readCount > 0}'), size: 16, color: color),
+    );
+  }
+}
+
+/// Lets a bubble be pulled to the left; letting go past a threshold opens
+/// the "Seen by" sheet, like in a messaging app.
+class _SwipeToInfo extends StatefulWidget {
+  const _SwipeToInfo({
+    required this.enabled,
+    required this.onInfo,
+    required this.child,
+  });
+
+  final bool enabled;
+  final VoidCallback onInfo;
+  final Widget child;
+
+  @override
+  State<_SwipeToInfo> createState() => _SwipeToInfoState();
+}
+
+class _SwipeToInfoState extends State<_SwipeToInfo> {
+  double _dx = 0;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    final p = context.palette;
+    final progress = (-_dx / 56).clamp(0.0, 1.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onHorizontalDragStart: (_) => setState(() => _dragging = true),
+      onHorizontalDragUpdate: (details) {
+        setState(() => _dx = (_dx + details.delta.dx).clamp(-84.0, 0.0));
+      },
+      onHorizontalDragEnd: (_) {
+        final open = _dx <= -56;
+        setState(() {
+          _dragging = false;
+          _dx = 0;
+        });
+        if (open) widget.onInfo();
+      },
+      onHorizontalDragCancel: () => setState(() {
+        _dragging = false;
+        _dx = 0;
+      }),
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          Positioned(
+            right: 0,
+            child: Opacity(
+              opacity: progress,
+              child: Icon(Icons.visibility_outlined, color: p.ink2, size: 20),
+            ),
+          ),
+          AnimatedContainer(
+            duration:
+                _dragging ? Duration.zero : const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            transform: Matrix4.translationValues(_dx * 0.6, 0, 0),
+            child: widget.child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Seen by" sheet for one message.
+Future<void> showMessageInfo(
+  BuildContext context,
+  ClassRoomController room,
+  ChatMessage message,
+) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (_) => _MessageInfoSheet(room: room, message: message),
+  );
+}
+
+class _MessageInfoSheet extends StatelessWidget {
+  const _MessageInfoSheet({required this.room, required this.message});
+
+  final ClassRoomController room;
+  final ChatMessage message;
+
+  String get _preview {
+    switch (message.kind) {
+      case MessageKind.image:
+        return 'Photo';
+      case MessageKind.audio:
+        return 'Voice note  ${durationLabel(message.mediaDurationMs)}';
+      case MessageKind.file:
+        return message.body ?? 'File';
+      case MessageKind.text:
+      case MessageKind.system:
+        return message.body ?? '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return ListenableBuilder(
+      listenable: room,
+      builder: (context, _) {
+        final readers = room.readersOf(message)
+          ..sort((a, b) => a.readAt.compareTo(b.readAt));
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              children: [
+                Text('Message info',
+                    style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: p.surface2,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _preview,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: p.ink, height: 1.4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Sent at ${_clock(message.createdAt)}',
+                  style: TextStyle(color: p.ink2, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(
+                      readers.isEmpty
+                          ? Icons.done_rounded
+                          : Icons.done_all_rounded,
+                      size: 20,
+                      color: readers.isEmpty ? p.ink2 : const Color(0xFF2B8FD6),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      readers.isEmpty
+                          ? 'Not seen yet'
+                          : 'Seen by ${readers.length}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                for (final r in readers)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: p.softBg,
+                      child: Text(
+                        r.label.isEmpty ? '?' : r.label[0].toUpperCase(),
+                        style: TextStyle(
+                          color: p.softInk,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    title: Text(r.label),
+                    trailing: Text(
+                      _clock(r.readAt),
+                      style: TextStyle(color: p.ink2, fontSize: 13),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// "Amina is typing…" with three bouncing dots.
+class TypingIndicator extends StatefulWidget {
+  const TypingIndicator({super.key, required this.names});
+
+  final List<String> names;
+
+  @override
+  State<TypingIndicator> createState() => _TypingIndicatorState();
+}
+
+class _TypingIndicatorState extends State<TypingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  String get _label {
+    final n = widget.names.toSet().toList();
+    if (n.isEmpty) return '';
+    if (n.length == 1) return '${n.first} is typing';
+    if (n.length == 2) return '${n[0]} and ${n[1]} are typing';
+    return '${n[0]}, ${n[1]} and ${n.length - 2} more are typing';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      alignment: Alignment.bottomLeft,
+      child: widget.names.isEmpty
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 6),
+              child: Row(
+                children: [
+                  AnimatedBuilder(
+                    animation: _c,
+                    builder: (context, _) => Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < 3; i++)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.only(right: 3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: p.accent.withValues(
+                                alpha: 0.35 +
+                                    0.65 *
+                                        math.max(
+                                          0,
+                                          math.sin(
+                                            (_c.value * 2 * math.pi) - i * 0.9,
+                                          ),
+                                        ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      _label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: p.ink2,
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }

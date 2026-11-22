@@ -27,6 +27,8 @@ class ChatComposer extends StatefulWidget {
 
 class _ChatComposerState extends State<ChatComposer> {
   final _text = TextEditingController();
+  final _focus = FocusNode();
+  bool _hadFloor = false;
   final _recorder = VoiceRecorder();
   Timer? _tick;
   int _seconds = 0;
@@ -39,6 +41,7 @@ class _ChatComposerState extends State<ChatComposer> {
     _tick?.cancel();
     _recorder.cancel();
     _text.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -139,6 +142,14 @@ class _ChatComposerState extends State<ChatComposer> {
     final p = context.palette;
     final session = room.session;
     if (session == null) return const SizedBox.shrink();
+
+    // When the instructor gives this student the floor, the keyboard opens.
+    if (room.hasFloor && !_hadFloor) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focus.requestFocus();
+      });
+    }
+    _hadFloor = room.hasFloor;
 
     Widget body;
     if (session.scheduled) {
@@ -287,6 +298,7 @@ class _ChatComposerState extends State<ChatComposer> {
             Expanded(
               child: TextField(
                 controller: _text,
+                focusNode: _focus,
                 minLines: 1,
                 maxLines: 4,
                 maxLength: 2000,
@@ -301,7 +313,10 @@ class _ChatComposerState extends State<ChatComposer> {
                     vertical: 12,
                   ),
                 ),
-                onChanged: (_) => setState(() {}),
+                onChanged: (value) {
+                  setState(() {});
+                  if (value.trim().isNotEmpty) room.notifyTyping();
+                },
               ),
             ),
             const SizedBox(width: 6),
@@ -319,7 +334,7 @@ class _ChatComposerState extends State<ChatComposer> {
               ),
           ],
         ),
-        if (!room.isTeacher)
+        if (!room.isTeacher && !room.hasFloor)
           Align(
             alignment: Alignment.centerLeft,
             child: Padding(

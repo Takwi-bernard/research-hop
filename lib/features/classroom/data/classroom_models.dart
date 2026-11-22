@@ -186,19 +186,57 @@ class HandRaise {
     required this.studentId,
     required this.label,
     required this.createdAt,
+    this.response,
+    this.respondedAt,
+    this.resolvedAt,
   });
 
   factory HandRaise.fromRow(Map<String, dynamic> row) => HandRaise(
         id: row['id'] as String,
-        studentId: row['student_id'] as String,
+        studentId: (row['student_id'] as String?) ?? '',
         label: (row['student_label'] as String?) ?? 'Student',
         createdAt: _date(row['created_at']) ?? DateTime.now(),
+        response: row['response'] as String?,
+        respondedAt: _date(row['responded_at']),
+        resolvedAt: _date(row['resolved_at']),
       );
 
   final String id;
   final String studentId;
   final String label;
   final DateTime createdAt;
+
+  /// null = still waiting, 'floor' = the instructor gave the floor,
+  /// 'later' = the instructor will get back to the student.
+  final String? response;
+  final DateTime? respondedAt;
+  final DateTime? resolvedAt;
+
+  bool get waiting => response == null && resolvedAt == null;
+  bool get hasFloor => response == 'floor' && resolvedAt == null;
+  bool get deferred => response == 'later';
+}
+
+/// Someone who has read a message.
+class Receipt {
+  const Receipt({
+    required this.messageId,
+    required this.readerId,
+    required this.label,
+    required this.readAt,
+  });
+
+  factory Receipt.fromRow(Map<String, dynamic> row) => Receipt(
+        messageId: (row['message_id'] as String?) ?? '',
+        readerId: (row['reader_id'] as String?) ?? '',
+        label: (row['reader_label'] as String?) ?? 'Student',
+        readAt: _date(row['read_at']) ?? DateTime.now(),
+      );
+
+  final String messageId;
+  final String readerId;
+  final String label;
+  final DateTime readAt;
 }
 
 class Announcement {
