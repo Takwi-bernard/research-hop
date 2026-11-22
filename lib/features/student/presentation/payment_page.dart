@@ -43,6 +43,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   bool _slow = false;
   bool _checking = false;
   Timer? _timer;
+  int _ticks = 0;
+  bool _autoChecking = false;
   DateTime? _startedAt;
 
   @override
@@ -98,6 +100,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
           _failure = result.failureReason;
         });
       } else {
+        // The operator's callback can be late or lost, so every 8 seconds we
+        // also ask the payment service to double-check with CamPay.
+        _ticks++;
+        if (_ticks % 2 == 0) _autoCheck(id);
         final started = _startedAt;
         if (started != null &&
             DateTime.now().difference(started) > const Duration(seconds: 75) &&
@@ -107,6 +113,19 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       }
     } catch (_) {
       // A dropped connection must not stop the waiting; try again next tick.
+    }
+  }
+
+  Future<void> _autoCheck(String id) async {
+    if (_autoChecking) return;
+    _autoChecking = true;
+    try {
+      await ref.read(studentRepositoryProvider).checkPayment(id);
+      if (mounted) await _poll();
+    } catch (_) {
+      // Quiet: the next round tries again.
+    } finally {
+      _autoChecking = false;
     }
   }
 
