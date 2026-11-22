@@ -143,6 +143,7 @@ class _Content extends ConsumerWidget {
                   ),
                 ),
               ),
+            _RequestsNotice(),
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -252,6 +253,49 @@ class _Stat extends StatelessWidget {
           ),
           Text(label, style: TextStyle(color: p.ink2, fontSize: 14)),
         ],
+      ),
+    );
+  }
+}
+
+class _RequestsNotice extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.palette;
+    final open = (ref.watch(teacherRequestsProvider).value ?? const [])
+        .where((r) => r.open)
+        .length;
+    if (open == 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: p.warnBg,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.record_voice_over_outlined, color: p.warnInk),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                open == 1
+                    ? 'A student asked for a class.'
+                    : '$open students asked for a class.',
+                style: TextStyle(
+                  color: p.warnInk,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15.5,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => context.go('/teacher/classes'),
+              child: const Text('Open requests'),
+            ),
+          ],
+        ),
       ),
     );
   }

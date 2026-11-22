@@ -14,6 +14,7 @@ import '../../auth/application/session_notifier.dart';
 import '../../auth/domain/models.dart';
 import '../../shell/page_frame.dart';
 import '../data/notifications_data.dart';
+import 'push_settings_card.dart';
 
 IconData _iconFor(String type) {
   switch (type) {
@@ -32,6 +33,10 @@ IconData _iconFor(String type) {
       return Icons.event_available_outlined;
     case 'announcement':
       return Icons.campaign_outlined;
+    case 'class_requested':
+    case 'class_request_scheduled':
+    case 'class_request_declined':
+      return Icons.record_voice_over_outlined;
     case 'teacher_approved':
     case 'teacher_rejected':
     case 'teacher_suspended':
@@ -110,6 +115,7 @@ class NotificationsPage extends ConsumerWidget {
                     onPressed: () => _markAll(context, ref),
                   ),
           ),
+          const PushSettingsCard(compact: true),
           AsyncBody<List<AppNotification>>(
             value: async,
             onRetry: () => ref.invalidate(notificationsProvider),

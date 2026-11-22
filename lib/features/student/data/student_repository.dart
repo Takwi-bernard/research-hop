@@ -10,6 +10,8 @@ List<Map<String, dynamic>> _list(Object? raw) {
   return [for (final item in raw) Map<String, dynamic>.from(item as Map)];
 }
 
+const _serviceDown = 'The payment service did not answer. Try again.';
+
 class StudentRepository {
   StudentRepository(this._client);
 
@@ -121,10 +123,17 @@ class StudentRepository {
     required String registrationId,
     required String phone,
   }) async {
-    final data = await _call('campay-collect', {
-      'registration_id': registrationId,
-      'phone': phone,
-    });
+    // The first call can fail while the payment service is waking up. It is
+    // safe to repeat: an open prompt for the same phone is reused.
+    final body = {'registration_id': registrationId, 'phone': phone};
+    Map<String, dynamic> data;
+    try {
+      data = await _call('campay-collect', body);
+    } on AppException catch (error) {
+      if (error.message != _serviceDown) rethrow;
+      await Future<void>.delayed(const Duration(seconds: 2));
+      data = await _call('campay-collect', body);
+    }
     final id = data['payment_id'];
     if (id is! String) {
       throw const AppException('The payment could not be started. Try again.');
@@ -160,7 +169,7 @@ class StudentRepository {
           'administrator in cash, or try again later.',
         );
       }
-      throw const AppException('The payment service did not answer. Try again.');
+      throw const AppException(_serviceDown);
     }
   }
 }

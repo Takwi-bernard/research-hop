@@ -13,6 +13,7 @@ import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/theme_mode_switcher.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import '../../auth/application/session_notifier.dart';
+import '../../notifications/presentation/push_settings_card.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/models.dart';
 import '../../shell/nav_destinations.dart';
@@ -280,6 +281,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          const PushSettingsCard(),
           const SizedBox(height: 16),
           SectionCard(
             child: Column(

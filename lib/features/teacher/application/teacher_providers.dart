@@ -28,6 +28,7 @@ final teacherLiveProvider = StreamProvider.autoDispose<int>((ref) {
     'class_sessions',
     'course_teachers',
     'course_announcements',
+    'class_requests',
     'course_modules',
     'course_materials',
   ]) {
@@ -63,4 +64,11 @@ final courseAnnouncementsProvider = FutureProvider.autoDispose
     .family<List<Announcement>, String>((ref, courseId) {
   ref.watch(teacherLiveProvider);
   return ref.watch(classroomRepositoryProvider).announcements(courseId);
+});
+
+/// Class requests for the teacher's courses (newest first).
+final teacherRequestsProvider =
+    FutureProvider.autoDispose<List<ClassRequest>>((ref) {
+  ref.watch(teacherLiveProvider);
+  return ref.watch(classroomRepositoryProvider).requests();
 });

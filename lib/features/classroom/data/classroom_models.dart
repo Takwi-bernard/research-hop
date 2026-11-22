@@ -224,3 +224,56 @@ class Announcement {
   final String body;
   final DateTime createdAt;
 }
+
+enum RequestStatus { open, scheduled, declined, cancelled }
+
+RequestStatus requestStatusFrom(String? value) =>
+    RequestStatus.values.firstWhere(
+      (s) => s.name == value,
+      orElse: () => RequestStatus.open,
+    );
+
+/// A student's request for a class. The teacher decides the time.
+class ClassRequest {
+  const ClassRequest({
+    required this.id,
+    required this.courseId,
+    required this.courseTitle,
+    required this.studentId,
+    required this.studentLabel,
+    required this.topic,
+    required this.note,
+    required this.status,
+    required this.sessionId,
+    required this.teacherReply,
+    required this.createdAt,
+  });
+
+  factory ClassRequest.fromRow(Map<String, dynamic> row) => ClassRequest(
+        id: row['id'] as String,
+        courseId: row['course_id'] as String,
+        courseTitle: (_map(row['courses'])['title'] as String?) ?? 'Course',
+        studentId: (row['student_id'] as String?) ?? '',
+        studentLabel: (row['student_label'] as String?) ?? 'Student',
+        topic: (row['topic'] as String?) ?? '',
+        note: (row['note'] as String?) ?? '',
+        status: requestStatusFrom(row['status'] as String?),
+        sessionId: row['session_id'] as String?,
+        teacherReply: (row['teacher_reply'] as String?) ?? '',
+        createdAt: _date(row['created_at']) ?? DateTime.now(),
+      );
+
+  final String id;
+  final String courseId;
+  final String courseTitle;
+  final String studentId;
+  final String studentLabel;
+  final String topic;
+  final String note;
+  final RequestStatus status;
+  final String? sessionId;
+  final String teacherReply;
+  final DateTime createdAt;
+
+  bool get open => status == RequestStatus.open;
+}

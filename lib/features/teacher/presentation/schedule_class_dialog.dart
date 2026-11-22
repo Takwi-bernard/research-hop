@@ -5,6 +5,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/errors.dart';
 import '../../../core/utils/format.dart';
 import '../../../shared/widgets/snack.dart';
+import '../../classroom/application/classroom_providers.dart';
 import '../../classroom/data/classroom_models.dart';
 import '../application/teacher_providers.dart';
 import '../data/teacher_repository.dart';
@@ -16,6 +17,7 @@ Future<bool> showScheduleClassDialog(
   required List<TeacherCourse> courses,
   String? courseId,
   ClassSession? existing,
+  ClassRequest? request,
 }) async {
   final saved = await showDialog<bool>(
     context: context,
@@ -23,6 +25,7 @@ Future<bool> showScheduleClassDialog(
       courses: courses,
       courseId: courseId,
       existing: existing,
+      request: request,
     ),
   );
   return saved ?? false;
@@ -33,11 +36,13 @@ class _ScheduleDialog extends ConsumerStatefulWidget {
     required this.courses,
     this.courseId,
     this.existing,
+    this.request,
   });
 
   final List<TeacherCourse> courses;
   final String? courseId;
   final ClassSession? existing;
+  final ClassRequest? request;
 
   @override
   ConsumerState<_ScheduleDialog> createState() => _ScheduleDialogState();
@@ -46,10 +51,13 @@ class _ScheduleDialog extends ConsumerStatefulWidget {
 class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _title =
-      TextEditingController(text: widget.existing?.title ?? '');
+      TextEditingController(
+          text: widget.existing?.title ?? widget.request?.topic ?? '');
   late final TextEditingController _description =
-      TextEditingController(text: widget.existing?.description ?? '');
+      TextEditingController(
+          text: widget.existing?.description ?? widget.request?.note ?? '');
   late String? _course = widget.existing?.courseId ??
+      widget.request?.courseId ??
       widget.courseId ??
       (widget.courses.length == 1 ? widget.courses.first.course.id : null);
   late DateTime _date = widget.existing?.scheduledAt ??
@@ -99,7 +107,16 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
     final repo = ref.read(teacherRepositoryProvider);
     try {
       final existing = widget.existing;
-      if (existing == null) {
+      final request = widget.request;
+      if (request != null) {
+        await ref.read(classroomRepositoryProvider).scheduleFromRequest(
+              requestId: request.id,
+              title: _title.text.trim(),
+              description: _description.text.trim(),
+              when: _date,
+            );
+        ref.invalidate(teacherRequestsProvider);
+      } else if (existing == null) {
         await repo.scheduleClass(
           courseId: course,
           title: _title.text.trim(),
@@ -128,9 +145,14 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
   Widget build(BuildContext context) {
     final p = context.palette;
     final editing = widget.existing != null;
+    final request = widget.request;
     return AlertDialog(
       backgroundColor: p.surface,
-      title: Text(editing ? 'Edit class' : 'Schedule a class'),
+      title: Text(
+        editing
+            ? 'Edit class'
+            : (request != null ? 'Schedule requested class' : 'Schedule a class'),
+      ),
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(
@@ -140,7 +162,15 @@ class _ScheduleDialogState extends ConsumerState<_ScheduleDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (widget.courses.length != 1 && !editing)
+                if (request != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Text(
+                      '${request.studentLabel} asked for: ${request.topic}',
+                      style: TextStyle(color: p.ink2, fontSize: 14, height: 1.4),
+                    ),
+                  ),
+                if (widget.courses.length != 1 && !editing && request == null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: DropdownButtonFormField<String>(

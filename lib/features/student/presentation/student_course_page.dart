@@ -18,6 +18,7 @@ import '../../classroom/data/classroom_models.dart';
 import '../../shell/page_frame.dart';
 import '../application/student_providers.dart';
 import '../data/student_models.dart';
+import 'class_requests_section.dart';
 import 'student_widgets.dart';
 
 class StudentCoursePage extends ConsumerStatefulWidget {
@@ -150,6 +151,7 @@ class _StudentCoursePageState extends ConsumerState<StudentCoursePage> {
         if (enrolled) ...[
           const SizedBox(height: 24),
           _announcements(p),
+          ClassRequestsSection(courseId: widget.courseId),
           _classes(p),
           const SizedBox(height: 24),
           _content(p),

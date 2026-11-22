@@ -232,4 +232,50 @@ class ClassroomRepository {
 
   Future<void> deleteAnnouncement(String id) =>
       _client.from('course_announcements').delete().eq('id', id);
+
+  // ---- class requests ----
+
+  /// Requests the current person may see: a student's own, or every request
+  /// of the courses a teacher teaches.
+  Future<List<ClassRequest>> requests({String? courseId}) async {
+    var query = _client
+        .from('class_requests')
+        .select(
+          'id, course_id, student_id, student_label, topic, note, status, '
+          'session_id, teacher_reply, created_at, courses(title)',
+        );
+    if (courseId != null) query = query.eq('course_id', courseId);
+    final rows =
+        await query.order('created_at', ascending: false).limit(100);
+    return [for (final r in _list(rows)) ClassRequest.fromRow(r)];
+  }
+
+  Future<void> requestClass(String courseId, String topic, String note) =>
+      _client.rpc('request_class', params: {
+        'p_course': courseId,
+        'p_topic': topic,
+        'p_note': note.isEmpty ? null : note,
+      });
+
+  Future<void> cancelRequest(String requestId) =>
+      _client.rpc('cancel_class_request', params: {'p_request': requestId});
+
+  Future<void> scheduleFromRequest({
+    required String requestId,
+    required String title,
+    required String description,
+    required DateTime when,
+  }) =>
+      _client.rpc('schedule_from_request', params: {
+        'p_request': requestId,
+        'p_title': title,
+        'p_description': description,
+        'p_at': when.toUtc().toIso8601String(),
+      });
+
+  Future<void> declineRequest(String requestId, String reply) =>
+      _client.rpc('decline_class_request', params: {
+        'p_request': requestId,
+        'p_reply': reply,
+      });
 }

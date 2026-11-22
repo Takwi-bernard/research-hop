@@ -203,8 +203,25 @@ final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: '/boot',
     refreshListenable: refresh,
-    redirect: (context, state) =>
-        redirectFor(ref.read(sessionProvider), state.uri.path),
+    redirect: (context, state) {
+      final session = ref.read(sessionProvider);
+      final path = state.uri.path;
+      final target = redirectFor(session, path);
+
+      // Opened a deep link (for example from a notification) before the
+      // session is ready: remember it, and go there once it is.
+      if (target == '/boot' && path != '/boot') {
+        return '/boot?from=${Uri.encodeComponent(state.uri.toString())}';
+      }
+      if (path == '/boot' && target != null && target != '/boot') {
+        final from = state.uri.queryParameters['from'];
+        if (from != null && from.startsWith('/')) {
+          final fromPath = Uri.parse(from).path;
+          if (redirectFor(session, fromPath) == null) return from;
+        }
+      }
+      return target;
+    },
     errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
       _simple('/', () => const HomePage()),

@@ -33,6 +33,7 @@ final studentLiveProvider = StreamProvider.autoDispose<int>((ref) {
     'course_modules',
     'course_materials',
     'course_announcements',
+    'class_requests',
   ]) {
     channel.onPostgresChanges(
       event: PostgresChangeEvent.all,
@@ -83,4 +84,10 @@ final studentAnnouncementsProvider = FutureProvider.autoDispose
     .family<List<Announcement>, String>((ref, courseId) {
   ref.watch(studentLiveProvider);
   return ref.watch(classroomRepositoryProvider).announcements(courseId);
+});
+
+final studentRequestsProvider = FutureProvider.autoDispose
+    .family<List<ClassRequest>, String>((ref, courseId) {
+  ref.watch(studentLiveProvider);
+  return ref.watch(classroomRepositoryProvider).requests(courseId: courseId);
 });

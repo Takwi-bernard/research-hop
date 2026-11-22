@@ -20,6 +20,7 @@ import '../../student/application/student_providers.dart';
 import '../../student/data/student_models.dart';
 import '../application/teacher_providers.dart';
 import '../data/teacher_repository.dart';
+import 'request_widgets.dart';
 import 'schedule_class_dialog.dart';
 import 'teacher_widgets.dart';
 
@@ -148,6 +149,7 @@ class _Body extends ConsumerWidget {
             ),
         ],
         const SizedBox(height: 26),
+        _Requests(courseId: c.id, courses: all),
         _Announcements(courseId: c.id),
         const SizedBox(height: 26),
         _Content(courseId: c.id),
@@ -397,6 +399,39 @@ class _Content extends ConsumerWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _Requests extends ConsumerWidget {
+  const _Requests({required this.courseId, required this.courses});
+
+  final String courseId;
+  final List<TeacherCourse> courses;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open = (ref.watch(teacherRequestsProvider).value ?? const [])
+        .where((r) => r.courseId == courseId && r.open)
+        .toList();
+    if (open.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 26),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Class requests',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          for (final r in open)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: RequestCard(request: r, courses: courses, showCourse: false),
+            ),
+        ],
+      ),
     );
   }
 }

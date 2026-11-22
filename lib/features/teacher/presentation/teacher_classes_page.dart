@@ -8,6 +8,8 @@ import '../../../shared/widgets/section_card.dart';
 import '../../classroom/data/classroom_models.dart';
 import '../../shell/page_frame.dart';
 import '../application/teacher_providers.dart';
+import '../data/teacher_repository.dart';
+import 'request_widgets.dart';
 import 'schedule_class_dialog.dart';
 import 'teacher_widgets.dart';
 
@@ -21,10 +23,36 @@ class TeacherClassesPage extends ConsumerStatefulWidget {
 class _TeacherClassesPageState extends ConsumerState<TeacherClassesPage> {
   int _tab = 0;
 
+  List<Widget> _requestWidgets(
+    List<ClassRequest> items,
+    List<TeacherCourse> courses,
+  ) {
+    if (items.isEmpty) {
+      return const [
+        EmptyState(
+          icon: Icons.record_voice_over_outlined,
+          title: 'No class requests',
+          message: 'When a student asks for a class, it appears here and you '
+              'choose the time.',
+        ),
+      ];
+    }
+    return [
+      for (final r in items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: RequestCard(request: r, courses: courses),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessions = ref.watch(teacherSessionsProvider);
     final courses = ref.watch(teacherCoursesProvider).value ?? const [];
+    final requests = ref.watch(teacherRequestsProvider).value ?? const [];
+    final openRequests = requests.where((r) => r.open).toList();
+    final answered = requests.where((r) => !r.open).take(10).toList();
 
     return PageFrame(
       maxWidth: 900,
@@ -55,18 +83,21 @@ class _TeacherClassesPageState extends ConsumerState<TeacherClassesPage> {
               final past = all.where((s) => s.finished).toList()
                 ..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
               final shown = _tab == 0 ? ahead : past;
+              final requestItems = [...openRequests, ...answered];
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ChipTabs(
-                    labels: const ['Upcoming', 'Past'],
-                    counts: [ahead.length, past.length],
+                    labels: const ['Upcoming', 'Past', 'Requests'],
+                    counts: [ahead.length, past.length, openRequests.length],
                     selected: _tab,
                     onChanged: (i) => setState(() => _tab = i),
                   ),
                   const SizedBox(height: 16),
-                  if (shown.isEmpty)
+                  if (_tab == 2)
+                    ..._requestWidgets(requestItems, courses)
+                  else if (shown.isEmpty)
                     EmptyState(
                       icon: Icons.event_outlined,
                       title: _tab == 0 ? 'No upcoming class' : 'No past class yet',

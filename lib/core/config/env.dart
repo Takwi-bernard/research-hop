@@ -20,6 +20,9 @@ class Env {
   static String get supabaseUrl => _read('SUPABASE_URL');
   static String get supabaseAnonKey => _read('SUPABASE_ANON_KEY');
 
+  /// Public key for browser notifications (optional, safe to publish).
+  static String get vapidPublicKey => _read('VAPID_PUBLIC_KEY');
+
   /// The host the app is talking to (not secret), used in error messages.
   static String get host => supabaseUrl.replaceFirst('https://', '');
 
